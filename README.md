@@ -1,1 +1,1 @@
-we are using transformers for language translation(English -> French)
+we are using transformers for language translation
