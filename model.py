@@ -69,7 +69,22 @@ class FeedForwardBlock(nn.Module):
         # (batch,seq_len,d_model ) -->(batch,seq_len,d_ff) --> (batch,seq_len,d_model)
         return self.linear_2(self.dropout(torch.relu(self.linear_1(x))))
     
-    
+    class MultiHeadAttentionBlock(nn.Module):
+        
+        def __init__(self,d_model:int,h:int,dropout:float) -> None:
+            
+            super().__init__()
+            self.d_model = d_model
+            self.h = h 
+            assert d_model% h ==0 , "d_model is not divisible by h"
+            
+            self.d_k = d_model//h 
+            self.w_q = nn.Linear(d_model,d_model) #Wq 
+            self.w_k = nn.Linear(d_model,d_model) # Wk 
+            self.w_v = nn.Linear (d_model,d_model) #Wv 
+            
+            self.w_o = nn.Linear(d_model,d_model) # Wo 
+            
     
         
         
