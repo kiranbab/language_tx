@@ -84,8 +84,29 @@ class FeedForwardBlock(nn.Module):
             self.w_v = nn.Linear (d_model,d_model) #Wv 
             
             self.w_o = nn.Linear(d_model,d_model) # Wo 
-            
-    
-        
+            self.dropout = nn.Dropout(dropout)
+
+        def forward(self,q,k,v,mask):
+
+            query = self.w_q(q) # (batch,seq_len,d_model0 -->(batch,seq_len,d_model)
+            key = self.w_k(k)# (batch,seq_len,d_model0 -->(batch,seq_len,d_model)
+            value = self.w_v(v)# (batch,seq_len,d_model0 -->(batch,seq_len,d_model) 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         
         
