@@ -6,7 +6,7 @@ This README outlines the implementation of various components used in the Transf
 2. Math <br>
 Ensure you have PyTorch installed in your environment to use these components. You can install PyTorch by following the instructions on the official website.
 
-
+![alt text](assets/images/transfomer_architecture.webp)
 # Features
 `Input Embedding`: Converts token indices into dense vectors of a specified size. <br>
 `Positional Embedding`: Adds positional information to the input embeddings, allowing the model to recognize word order.<br>

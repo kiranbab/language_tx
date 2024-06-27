@@ -272,20 +272,75 @@ class ResidualConnection(nn.Module):
         return x + self.dropout(sublayer(self.norm(x)))
 
 class EncoderBlock(nn.Module):
-    
-    def __init__(self, self_attention_block : MultiHeadAttentionBlock, feed_forward_block:FeedForwardBlock,dropout:float) -> None:
+    """
+    A Transformer Encoder Block that combines a self-attention mechanism with a feed-forward neural network.
+
+    Parameters:
+    - self_attention_block (MultiHeadAttentionBlock): The self-attention mechanism block.
+    - feed_forward_block (FeedForwardBlock): The feed-forward neural network block.
+    - dropout (float): The dropout rate used in the residual connections.
+
+    Methods:
+    - forward(x, src_mask): Processes the input tensor `x` using the self-attention mechanism and the feed-forward network within the context of the provided source mask `src_mask`.
+
+    Inputs:
+    - x (Tensor): The input tensor to the encoder block with shape `(batch_size, sequence_length, d_model)`.
+    - src_mask (Tensor): The mask tensor for the source input with shape `(batch_size, sequence_length, sequence_length)` used in the self-attention mechanism to prevent attention to certain positions.
+
+    Returns:
+    - Tensor: The output tensor of the encoder block with the same shape as the input tensor `(batch_size, sequence_length, d_model)`.
+
+    Raises:
+    - No explicit exceptions are raised by this method, but errors may occur due to incorrect input shapes or types.
+    """
+    def __init__(self, self_attention_block: MultiHeadAttentionBlock, feed_forward_block: FeedForwardBlock, dropout: float) -> None:
         super().__init__()
         self.self_attention_block = self_attention_block
         self.feed_forward_block = feed_forward_block
         self.residual_connections = nn.ModuleList([ResidualConnection(dropout) for _ in range(2)])
         
-    def forward(self,x,src_mask):
-        x = self.residual_connections[0] (x,lambda x : self.self_attention_block(x,x,x,src_mask))
-        x = self.residual_connections[1] (x,self.feed_forward_block)
-        return x 
-        
-        
+    def forward(self, x, src_mask):
+        x = self.residual_connections[0](x, lambda x: self.self_attention_block(x, x, x, src_mask))
+        x = self.residual_connections[1](x, self.feed_forward_block)
+        return x
+class Encoder(nn.Module):
+    """
+    A Transformer Encoder module that sequentially applies a list of encoder layers and a final layer normalization.
 
+    Parameters:
+    - layers (nn.ModuleList): A list of encoder layers (instances of EncoderBlock or similar) to be applied sequentially.
+
+    Methods:
+    - forward(x, mask): Processes the input tensor `x` through each encoder layer using the mask `mask`, followed by layer normalization.
+
+    Inputs:
+    - x (Tensor): The input tensor to the encoder with shape `(batch_size, sequence_length, d_model)`.
+    - mask (Tensor): The mask tensor for the input with shape `(batch_size, sequence_length, sequence_length)` used in self-attention mechanisms to prevent attention to certain positions.
+
+    Returns:
+    - Tensor: The output tensor of the encoder with the same shape as the input tensor `(batch_size, sequence_length, d_model)`.
+
+    Raises:
+    - No explicit exceptions are raised by this method, but errors may occur due to incorrect input shapes or types.
+    """
+    def __init__(self, layers: nn.ModuleList) -> None:
+        super().__init__()
+        self.layers = layers
+        self.norm = LayerNormalization()
+        
+    def forward(self, x, mask):
+        for layer in self.layers:
+            x = layer(x, mask)
+        return self.norm(x)
+
+# all the code use above is for Encoder block of Transformer Architecture 
+# ________________________________________________________________________________________________________
+# DEFINING DECODER: 
+
+class DecoderBlock(nn.Module):
+    
+    def __init__(self,) -> None:
+        super().__init__()
 
 
 
