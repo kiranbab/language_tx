@@ -338,20 +338,107 @@ class Encoder(nn.Module):
 # DEFINING DECODER: 
 
 class DecoderBlock(nn.Module):
-    def __init__(self,self_attention_block: MultiHeadAttentionBlock,cross_attention_block:MultiHeadAttentionBlock,feed_forward_block: FeedForwardBlock,dropout:float) -> None:
+    """
+    A Transformer Decoder Block that combines self-attention, cross-attention, and a feed-forward neural network.
+
+    Parameters:
+    - self_attention_block (MultiHeadAttentionBlock): The self-attention mechanism block.
+    - cross_attention_block (MultiHeadAttentionBlock): The cross-attention mechanism block, allowing the decoder to focus on different parts of the encoder output.
+    - feed_forward_block (FeedForwardBlock): The feed-forward neural network block.
+    - dropout (float): The dropout rate used in the residual connections.
+
+    Methods:
+    - forward(x, encoder_output, src_mask, tgt_mask): Processes the input tensor `x` using self-attention, cross-attention with the encoder output, and the feed-forward network, considering both source and target masks.
+
+    Inputs:
+    - x (Tensor): The input tensor to the decoder block with shape `(batch_size, target_sequence_length, d_model)`.
+    - encoder_output (Tensor): The output tensor from the encoder with shape `(batch_size, source_sequence_length, d_model)`.
+    - src_mask (Tensor): The mask tensor for the source input with shape `(batch_size, source_sequence_length, source_sequence_length)` used in the cross-attention mechanism to prevent attention to certain positions.
+    - tgt_mask (Tensor): The mask tensor for the target input with shape `(batch_size, target_sequence_length, target_sequence_length)` used in the self-attention mechanism to prevent attention to future positions in the target sequence.
+
+    Returns:
+    - Tensor: The output tensor of the decoder block with the same shape as the input tensor `(batch_size, target_sequence_length, d_model)`.
+
+    Raises:
+    - No explicit exceptions are raised by this method, but errors may occur due to incorrect input shapes or types.
+    """
+    def __init__(self, self_attention_block: MultiHeadAttentionBlock, cross_attention_block: MultiHeadAttentionBlock, feed_forward_block: FeedForwardBlock, dropout: float) -> None:
         super().__init__()
         self.self_attention_block = self_attention_block
         self.cross_attention_block = cross_attention_block
         self.feed_forward_block = feed_forward_block
-        self.residual_connections = nn.Module([ResidualConnection(dropout) for _ in range(3)])
+        self.residual_connections = nn.ModuleList([ResidualConnection(dropout) for _ in range(3)])
     
-    def forward(self,x , encoder_output, src_mask,tgt_mask):
-        x = self.residual_connections[0] (x,lambda x : self.self_attention_block(x,x,x,tgt_mask))
-        x = self.residual_connections[1] (x,lambda x : self.cross_attention_block(x, encoder_output, encoder_output, src_mask))
-        x= self.residual_connections[2] (x,self.feed_forward_block)
-        return x 
+    def forward(self, x, encoder_output, src_mask, tgt_mask):
+        x = self.residual_connections[0](x, lambda x: self.self_attention_block(x, x, x, tgt_mask))
+        x = self.residual_connections[1](x, lambda x: self.cross_attention_block(x, encoder_output, encoder_output, src_mask))
+        x = self.residual_connections[2](x, self.feed_forward_block)
+        return x
+
+
     
+class Decoder(nn.Module):
+    """
+    A Transformer Decoder module that sequentially applies a list of decoder layers and a final layer normalization.
+
+    Parameters:
+    - layers (nn.ModuleList): A list of decoder layers (instances of DecoderBlock or similar) to be applied sequentially.
+
+    Methods:
+    - forward(x, encoder_output, src_mask, tgt_mask): Processes the input tensor `x` through each decoder layer using the encoder output and both source and target masks, followed by layer normalization.
+
+    Inputs:
+    - x (Tensor): The input tensor to the decoder with shape `(batch_size, target_sequence_length, d_model)`.
+    - encoder_output (Tensor): The output tensor from the encoder with shape `(batch_size, source_sequence_length, d_model)`.
+    - src_mask (Tensor): The mask tensor for the source input with shape `(batch_size, source_sequence_length, source_sequence_length)` used in cross-attention mechanisms to prevent attention to certain positions.
+    - tgt_mask (Tensor): The mask tensor for the target input with shape `(batch_size, target_sequence_length, target_sequence_length)` used in self-attention mechanisms to prevent attention to future positions in the target sequence.
+
+    Returns:
+    - Tensor: The output tensor of the decoder with the same shape as the input tensor `(batch_size, target_sequence_length, d_model)`.
+
+    Raises:
+    - No explicit exceptions are raised by this method, but errors may occur due to incorrect input shapes or types.
+    """
+    def __init__(self, layers: nn.ModuleList) -> None:
+        super().__init__()
+        self.layers = layers
+        self.norm = LayerNormalization()
+         
+    def forward(self, x, encoder_output, src_mask, tgt_mask):
+        for layer in self.layers:
+            x = layer(x, encoder_output, src_mask, tgt_mask) 
+        return self.norm(x)
+
+class ProjectionLayer(nn.Module):
+    """
+    A layer that projects the output of a decoder to a vocabulary space and applies log softmax.
+
+    This layer is typically used in the output stage of a model like a Transformer decoder to convert the model's
+    outputs into log probabilities, which are more numerically stable for calculating the loss.
+
+    Parameters:
+    - d_model (int): The dimensionality of the input features from the decoder.
+    - vocab_size (int): The size of the target vocabulary.
+
+    Methods:
+    - forward(x): Projects the input tensor `x` to the vocabulary space and applies log softmax.
+
+    Inputs:
+    - x (Tensor): A tensor of shape `(batch_size, seq_len, d_model)` representing the decoder's output.
+
+    Returns:
+    - Tensor: A tensor of shape `(batch_size, seq_len, vocab_size)` representing log probabilities of each token in the vocabulary.
+
+    Raises:
+    - No explicit exceptions are raised but expect errors related to incompatible tensor shapes or types.
+    """
+    def __init__(self, d_model: int, vocab_size: int) -> None:
+        super().__init__()
+        self.proj = nn.Linear(d_model, vocab_size)
         
+    def forward(self, x):
+        # (batch_size, seq_len, d_model) --> (batch_size, seq_len, vocab_size)
+        return torch.log_softmax(self.proj(x), dim=-1)
 
 
 
