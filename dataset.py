@@ -122,17 +122,4 @@ def casual_mask(size):
     return mask == 0 
 
      
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
+   

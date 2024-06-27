@@ -9,7 +9,8 @@ from tokenizers.pre_tokenizers import Whitespace
 from pathlib import Path 
 from torch.utils.data import DataLoader,Dataset,random_split
 
-
+from dataset import BilingualDataset,casual_mask
+from model import build_transformer
 
 def get_or_build_tokenizer(config, ds, lang):
     """
@@ -44,24 +45,25 @@ def get_all_sentence(ds,lang):
         yield item['translation'][lang]
 
 def get_ds(config):
+    
     """
-    Loads a dataset and splits it into training and validation sets, also builds tokenizers for source and target languages.
+    Prepares training and validation dataloaders for a bilingual dataset, along with source and target tokenizers.
 
     Parameters:
-    - config (dict): Configuration dictionary that must include 'lang_src' and 'lang_tgt' keys for source and target languages,
-                        and 'tokenizer_file' template for saving or loading the tokenizer.
+    - config (dict): Configuration dictionary with keys including 'lang_src' (source language code), 
+      'lang_tgt' (target language code), 'seq_len' (sequence length for padding/truncation), 
+      and 'batch_size' (batch size for the dataloaders).
 
     Returns:
-    - tuple: A tuple containing two elements, the training dataset and the validation dataset, both split from the original dataset.
+    - Tuple containing:
+        - train_dataloader (DataLoader): DataLoader for the training dataset.
+        - val_dataloader (DataLoader): DataLoader for the validation dataset.
+        - tokenizer_src (Tokenizer): Tokenizer for the source language.
+        - tokenizer_tgt (Tokenizer): Tokenizer for the target language.
 
-    This function performs the following steps:
-    1. Loads the dataset specified by 'opus_books' and the language pair from the config.
-    2. Builds or loads a tokenizer for both the source and target languages using the `get_or_build_tokenizer` function.
-    3. Splits the dataset into training (90%) and validation (10%) sets.
-    4. Returns the training and validation datasets.
-
-    Note: This function requires the 'datasets' and 'torch' libraries, and it assumes the existence of a function named `get_or_build_tokenizer`
-    that is capable of either loading an existing tokenizer or training a new one based on the dataset provided.
+    This function loads a bilingual dataset from the "opus_books" collection, splits it into training and validation sets,
+    and prepares DataLoaders for each. It also reports the maximum sequence lengths found in the raw dataset for both source
+    and target languages. Tokenizers for both languages are either loaded or trained as needed.
     """
     
     ds_raw = load_dataset("opus_books",f'{config["lang_src"]} - {config['lang_tgt']}',split="train")
@@ -74,7 +76,29 @@ def get_ds(config):
     train_ds_size = int(0.9 * len(ds_raw))
     valid_ds_size = len(ds_raw) - train_ds_size
     train_ds_raw, valid_ds_raw = random_split(ds_raw, [train_ds_size, valid_ds_size])
+    
+    
+    train_ds = BilingualDataset(train_ds_raw,tokenizer_src, tokenizer_tgt, config['lang_src'],config['lang_tgt'],config['seq_len'])
+    val_ds = BilingualDataset(valid_ds_raw,tokenizer_src,tokenizer_tgt,config['lang_src'],config['lang_tgt'],config['seq_len'])
+    
+    max_len_src= 0 
+    max_len_tgt= 0
+    
+    for item in ds_raw:
+        src_ids = tokenizer_src.encode(item['translation'][config['lang_src']]).ids 
+        tgt_ids = tokenizer_tgt.encode(item['translation'][config['lang_tgt']]).ids 
+        max_len_src = max(max_len_src,len(src_ids))
+        max_len_tgt = max(max_len_tgt,len(tgt_ids))
         
-        # return train_ds_raw, valid_ds_raw
+    print(f"Max length of source sentence {max_len_src}")
+    print(f"Max length of target sentence {max_len_tgt}")
     
+    train_dataloader = DataLoader(train_ds,batch_size=config['batch_size'],shuffle=True)
+    val_dataloader = DataLoader(val_ds,batch_size=1,shuffle=True)
     
+    return train_dataloader,val_dataloader,tokenizer_src,tokenizer_tgt
+
+
+def get_model(config, vocab_src_len,vocab_tgt_len):
+    model = build_transformer(vocab_src_len,vocab_tgt_len,config['seq_len'],config['seq_len'],config['d_model'])
+    return model
