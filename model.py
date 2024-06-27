@@ -440,8 +440,63 @@ class ProjectionLayer(nn.Module):
         # (batch_size, seq_len, d_model) --> (batch_size, seq_len, vocab_size)
         return torch.log_softmax(self.proj(x), dim=-1)
 
+class Transformer(nn.Module):
+    """
+    A Transformer model that encapsulates an encoder, a decoder, and a projection layer for sequence-to-sequence tasks.
 
+    Parameters:
+    - encoder (Encoder): The Transformer encoder module.
+    - decoder (Decoder): The Transformer decoder module.
+    - src_embed (InputEmbedding): The embedding layer for source sequences.
+    - tgt_embed (InputEmbedding): The embedding layer for target sequences.
+    - src_pos (PositionalEmbedding): The positional embedding layer for source sequences.
+    - tgt_pos (PositionalEmbedding): The positional embedding layer for target sequences.
+    - projection_layer (ProjectionLayer): The projection layer to map decoder outputs to vocabulary space.
 
+    Methods:
+    - encode(src, src_mask): Encodes the source sequence.
+        - src (Tensor): The source sequence tensor.
+        - src_mask (Tensor): The mask tensor for the source sequence.
+        Returns: The encoded source sequence tensor.
+
+    - decode(encoder_output, src_mask, tgt, tgt_mask): Decodes the target sequence.
+        - encoder_output (Tensor): The output tensor from the encoder.
+        - src_mask (Tensor): The mask tensor for the source sequence.
+        - tgt (Tensor): The target sequence tensor.
+        - tgt_mask (Tensor): The mask tensor for the target sequence.
+        Returns: The decoded target sequence tensor.
+
+    - project(x): Projects the decoder output to vocabulary space.
+        - x (Tensor): The decoder output tensor.
+        Returns: The projected tensor in vocabulary space.
+    """
+    def __init__(self, encoder: Encoder, decoder: Decoder, src_embed: InputEmbedding, tgt_embed: InputEmbedding, src_pos: PositionalEmbedding, tgt_pos: PositionalEmbedding, projection_layer: ProjectionLayer) -> None:
+        super().__init__()
+        self.encoder = encoder
+        self.decoder = decoder
+        self.src_embed = src_embed
+        self.tgt_embed = tgt_embed
+        self.src_pos = src_pos
+        self.tgt_pos = tgt_pos
+        self.projection_layer = projection_layer
+
+    def encode(self, src, src_mask):
+        src = self.src_embed(src)
+        src = self.src_pos(src)
+        return self.encoder(src, src_mask)
+
+    def decode(self, encoder_output, src_mask, tgt, tgt_mask):
+        tgt = self.tgt_embed(tgt)
+        tgt = self.tgt_pos(tgt)
+        return self.decoder(tgt, encoder_output, src_mask, tgt_mask)
+
+    def project(self, x):
+        return self.projection_layer(x)
+
+def build_transformer(src_vocab_size:int ,tgt_vocab_size:int,src_seq_len:int,tgt_seq_len:int,d_model:int=512,N:int=6, h:int=8,dropout:float=0.1,d_ff:int = 2048) ->Transformer:
+    # Create the embedding layers 
+    
+    
 
 
 
