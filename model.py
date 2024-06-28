@@ -203,11 +203,11 @@ class MultiHeadAttentionBlock(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     @staticmethod 
-    def attention(query,key,value,mask,droput:nn.Dropout):
+    def attention(query,key,value,mask,dropout:nn.Dropout):
         d_k = query.shape[-1]
 
         #(batch_size,seq_len,d_k) -> (batch_size,seq_len,seq_len)
-        attention_score = (query @ key.tranpose(-2,-1) ) / math.sqrt(d_k)
+        attention_score = (query @ key.transpose(-2,-1) ) / math.sqrt(d_k)
 
         if mask is not None:
             attention_score.masked_fill(mask==0,-1e9)
@@ -228,14 +228,14 @@ class MultiHeadAttentionBlock(nn.Module):
 
         # (batch-size,seq_len,d_model) --> (batch-size,seq_len,h,d_k) -> (batch_size,sh,seq_len,d_k)
         # we doing the transpose here becuase we want eveyr head to see the entire sequence of length but with diffent d_k 
-        query = query.view(query.shape[0],query.shape[1],self.h,self.d_k).tranpose(1,2)
-        key  = key.view(key.shape(0),key.shape[1],self.h,self.d_k).tranpose(1,2)
-        value = value.view(value.shape[0],value.shape[1]self.h,self.d_k).tranpose(1,2)
+        query = query.view(query.shape[0],query.shape[1],self.h,self.d_k).transpose(1,2)
+        key  = key.view(key.shape[0],key.shape[1],self.h,self.d_k).transpose(1,2)
+        value = value.view(value.shape[0],value.shape[1],self.h,self.d_k).transpose(1,2)
 
-        x,self.attention_score = MultiHeadAttentionBlock(query,key,value,mask,self.dropout)
+        x,self.attention_score = MultiHeadAttentionBlock.attention(query,key,value,mask,self.dropout)
 
         # (batch_size,h,seq_len,d_k) -> (batch_size,seq_len,h,d_k) -> (batch_size,seq_len,d_model)
-        x =x.tranpose(1,2).contiguous().view(x.shape[0],-1,self.h * self.d_k)
+        x =x.transpose(1,2).contiguous().view(x.shape[0],-1,self.h * self.d_k)
 
         # (batch_size,seq_len,d_model) -> (batch_size,seq_len,d_model)
         return self.w_o(x) 
@@ -263,10 +263,10 @@ class ResidualConnection(nn.Module):
     Raises:
     - No explicit exceptions are raised by this module, but errors may occur if `sublayer` does not return a tensor of the same shape as its input.
     """
-    def __init__(self, dropout: float) -> None:
+    def __init__(self, dropout: float,features:int) -> None:
         super().__init__()
         self.dropout = nn.Dropout(dropout)
-        self.norm = LayerNormalization() 
+        self.norm = LayerNormalization(features) 
 
     def forward(self, x, sublayer):
         return x + self.dropout(sublayer(self.norm(x)))
@@ -293,11 +293,11 @@ class EncoderBlock(nn.Module):
     Raises:
     - No explicit exceptions are raised by this method, but errors may occur due to incorrect input shapes or types.
     """
-    def __init__(self, self_attention_block: MultiHeadAttentionBlock, feed_forward_block: FeedForwardBlock, dropout: float) -> None:
+    def __init__(self,features:int, self_attention_block: MultiHeadAttentionBlock, feed_forward_block: FeedForwardBlock, dropout: float) -> None:
         super().__init__()
         self.self_attention_block = self_attention_block
         self.feed_forward_block = feed_forward_block
-        self.residual_connections = nn.ModuleList([ResidualConnection(dropout) for _ in range(2)])
+        self.residual_connections = nn.ModuleList([ResidualConnection(dropout,features) for _ in range(2)])
         
     def forward(self, x, src_mask):
         x = self.residual_connections[0](x, lambda x: self.self_attention_block(x, x, x, src_mask))
@@ -323,10 +323,10 @@ class Encoder(nn.Module):
     Raises:
     - No explicit exceptions are raised by this method, but errors may occur due to incorrect input shapes or types.
     """
-    def __init__(self, layers: nn.ModuleList) -> None:
+    def __init__(self, features:int,layers: nn.ModuleList) -> None:
         super().__init__()
         self.layers = layers
-        self.norm = LayerNormalization()
+        self.norm = LayerNormalization(features)
         
     def forward(self, x, mask):
         for layer in self.layers:
@@ -362,12 +362,12 @@ class DecoderBlock(nn.Module):
     Raises:
     - No explicit exceptions are raised by this method, but errors may occur due to incorrect input shapes or types.
     """
-    def __init__(self, self_attention_block: MultiHeadAttentionBlock, cross_attention_block: MultiHeadAttentionBlock, feed_forward_block: FeedForwardBlock, dropout: float) -> None:
+    def __init__(self,features:int, self_attention_block: MultiHeadAttentionBlock, cross_attention_block: MultiHeadAttentionBlock, feed_forward_block: FeedForwardBlock, dropout: float) -> None:
         super().__init__()
         self.self_attention_block = self_attention_block
         self.cross_attention_block = cross_attention_block
         self.feed_forward_block = feed_forward_block
-        self.residual_connections = nn.ModuleList([ResidualConnection(dropout) for _ in range(3)])
+        self.residual_connections = nn.ModuleList([ResidualConnection(dropout,features) for _ in range(3)])
     
     def forward(self, x, encoder_output, src_mask, tgt_mask):
         x = self.residual_connections[0](x, lambda x: self.self_attention_block(x, x, x, tgt_mask))
@@ -399,10 +399,10 @@ class Decoder(nn.Module):
     Raises:
     - No explicit exceptions are raised by this method, but errors may occur due to incorrect input shapes or types.
     """
-    def __init__(self, layers: nn.ModuleList) -> None:
+    def __init__(self,features:int, layers: nn.ModuleList) -> None:
         super().__init__()
         self.layers = layers
-        self.norm = LayerNormalization()
+        self.norm = LayerNormalization(features)
          
     def forward(self, x, encoder_output, src_mask, tgt_mask):
         for layer in self.layers:
@@ -527,7 +527,7 @@ def build_transformer(src_vocab_size:int ,tgt_vocab_size:int,src_seq_len:int,tgt
     for _ in range(N):
         encoder_self_attention_block = MultiHeadAttentionBlock(d_model,h,dropout)
         feed_forward_block = FeedForwardBlock(d_model,d_ff,dropout)
-        encoder_block = EncoderBlock(encoder_self_attention_block,feed_forward_block,dropout)
+        encoder_block = EncoderBlock(d_model,encoder_self_attention_block,feed_forward_block,dropout)
         encoder_blocks.append(encoder_block)
         
     # Create decoder blocks 
@@ -536,13 +536,13 @@ def build_transformer(src_vocab_size:int ,tgt_vocab_size:int,src_seq_len:int,tgt
         decoder_self_attention = MultiHeadAttentionBlock(d_model,h,dropout)
         decoder_cross_attention = MultiHeadAttentionBlock(d_model,h,dropout)
         feed_forward_block = FeedForwardBlock(d_model,d_ff,dropout)
-        decoder_block = DecoderBlock(decoder_self_attention,decoder_cross_attention,feed_forward_block,dropout)
+        decoder_block = DecoderBlock(d_model,decoder_self_attention,decoder_cross_attention,feed_forward_block,dropout)
         decoder_blocks.append(decoder_block)
          
     
     # Create the encoder and decoder 
-    encoder = Encoder(nn.ModuleList(encoder_blocks))
-    decoder = Decoder(nn.ModuleList(decoder_blocks))
+    encoder = Encoder(d_model,nn.ModuleList(encoder_blocks))
+    decoder = Decoder(d_model,nn.ModuleList(decoder_blocks))
     
     # Create the projection layer 
     projection_layer = ProjectionLayer(d_model,tgt_vocab_size)
