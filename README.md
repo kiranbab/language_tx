@@ -30,9 +30,6 @@ Features<br>
 
 
 
-## Contributing
-Contributions to improve the library are welcome. Please ensure to follow the coding standards and submit a pull request for review.
-
 ## License
 This library is open-sourced under the MIT license.
 
